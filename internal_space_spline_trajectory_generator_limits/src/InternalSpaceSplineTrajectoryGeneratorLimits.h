@@ -50,6 +50,9 @@
 #include <string>
 #include <vector>
 
+#include <trapezoidal_trajectory_msgs/TrapezoidGeneratorResult.h>
+#include <trapezoidal_trajectory_msgs/TrapezoidGeneratorGoal.h>
+
 #include "velocityprofile_spline.hpp"
 
 class InternalSpaceSplineTrajectoryGeneratorLimits : public RTT::TaskContext {
@@ -63,15 +66,17 @@ class InternalSpaceSplineTrajectoryGeneratorLimits : public RTT::TaskContext {
   virtual void updateHook();
 
  protected:
-  RTT::InputPort<trajectory_msgs::JointTrajectoryConstPtr> port_trajectory_in_;
+  RTT::InputPort<trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal> port_trajectory_in_;
 
   RTT::OutputPort<Eigen::VectorXd> port_internal_space_position_command_out_;
-  RTT::OutputPort<std_msgs::Int16> port_is_trajectory_feasible_;
+  RTT::OutputPort<trapezoidal_trajectory_msgs::TrapezoidGeneratorResult> port_generator_result_;
   RTT::InputPort<Eigen::VectorXd> port_internal_space_position_measurement_in_;
   RTT::OutputPort<bool> port_generator_active_out_;
   RTT::InputPort<bool> port_is_synchronised_in_;
 
  private:
+  virtual void saveDataToFile() const;
+
   bool last_point_not_set_;
   bool trajectory_active_;
   std::vector<bool> active_points_; 
@@ -82,9 +87,10 @@ class InternalSpaceSplineTrajectoryGeneratorLimits : public RTT::TaskContext {
 
   Eigen::VectorXd des_jnt_pos_, setpoint_, old_point_;
 
+  std::vector <Eigen::VectorXd> setpoint_results_, jnt_results_;
   std::vector <double> old_velocity_;
 
-  trajectory_msgs::JointTrajectoryConstPtr trajectory_;
+  trajectory_msgs::JointTrajectory trajectory_;
   size_t trajectory_ptr_;
 
   ros::Time last_time_;

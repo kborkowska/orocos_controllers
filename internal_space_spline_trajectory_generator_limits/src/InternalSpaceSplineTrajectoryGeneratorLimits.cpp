@@ -35,6 +35,10 @@
  *      Author: Konrad Banachowicz
  */
 
+#include <iostream>
+#include <fstream>
+#include <ctime>
+
 #include <rtt/Component.hpp>
 #include <string>
 #include <exception>
@@ -50,7 +54,7 @@ InternalSpaceSplineTrajectoryGeneratorLimits::InternalSpaceSplineTrajectoryGener
       trajectory_ptr_(0),
       number_of_joints_(0),
       port_trajectory_in_("trajectoryPtr_INPORT"),
-      port_is_trajectory_feasible_("IsTrajectoryFeasible_OUTPORT"),
+      port_generator_result_("GeneratorResult_OUTPORT"),
       port_internal_space_position_command_out_("JointPositionCommand_OUTPORT",
                                                 false),
       port_generator_active_out_("GeneratorActive_OUTPORT", false),
@@ -63,7 +67,7 @@ InternalSpaceSplineTrajectoryGeneratorLimits::InternalSpaceSplineTrajectoryGener
   this->ports()->addPort(port_internal_space_position_measurement_in_);
   this->ports()->addPort(port_generator_active_out_);
   this->ports()->addPort(port_is_synchronised_in_);
-  this->ports()->addPort(port_is_trajectory_feasible_);
+  this->ports()->addPort(port_generator_result_);
 
   this->addProperty("number_of_joints", number_of_joints_);
   this->addProperty("ns_interval", ns_interval_);
@@ -97,20 +101,22 @@ bool InternalSpaceSplineTrajectoryGeneratorLimits::configureHook() {
   des_jnt_pos_.resize(number_of_joints_);
   port_internal_space_position_command_out_.setDataSample(des_jnt_pos_);
 
-  std_msgs::Int16 smpl_ = std_msgs::Int16();
-  port_is_trajectory_feasible_.setDataSample(smpl_);
+  trapezoidal_trajectory_msgs::TrapezoidGeneratorResult smpl_ = trapezoidal_trajectory_msgs::TrapezoidGeneratorResult();
+  port_generator_result_.setDataSample(smpl_);
 
   ns_higher_bound_ = ns_interval_ * 1.1;
   ns_higher_increment_ = ns_interval_ * 1.05;
   ns_lower_bound_ = ns_interval_ * 0.9;
   ns_lower_increment_ = ns_interval_ * 0.95;
 
+  trajectory_active_ = false;
+
   return true;
 }
 
 bool InternalSpaceSplineTrajectoryGeneratorLimits::startHook() {
 
-  std::cout<<max_velocities_[0]<<std::endl;
+  //std::cout<<max_velocities_[0]<<std::endl;
 
   bool is_synchronised = true;
 
@@ -147,14 +153,47 @@ void InternalSpaceSplineTrajectoryGeneratorLimits::stopHook() {
   port_generator_active_out_.write(false);
 }
 
+void InternalSpaceSplineTrajectoryGeneratorLimits::saveDataToFile(){
+  time_t now = time(0);
+  tm *ltm = localtime(&now);
+  std::string file_name = "/"+std::to_string(ltm->tm_mday)+
+                          std::to_string(ltm->tm_mon)+
+                          std::to_string(ltm->tm_year)+
+                          std::to_string(1 + ltm->tm_hour)+
+                          std::to_string(1 + ltm->tm_min)+
+                          std::to_string(1 + ltm->tm_sec)+"/";
+  std::ofstream myfile;
+  //save points
+  myfile.open (file_name+"points.txt");
+  for(int i = 0; i<;++i){
+    for(int k =0; k<number_of_joints_; ++k){
+      myfile << std::to_string(trajectory_.points[i])+ " ";
+    }
+  }
+  for(int l = 0; l<number_of_joints_;++l){
+      myfile << std::to_string(trajectory_.points[i])+ " ";
+  }
+  for(int k = 0; k<setpoint_results_.size(); ++k){
+    for(int l = 0; l<number_of_joints_;++l){
+      myfile << std::to_string(setpoint_results_[k](l))+ " ";
+    }
+    for(int l = 0; l<number_of_joints_;++l){
+      myfile << std::to_string(jnt_results_[k](l))+ " ";
+    }
+    myfile <<"\n";
+  }
+  myfile.close();
+}
+
 void InternalSpaceSplineTrajectoryGeneratorLimits::updateHook() {
   update_hook_iter_++;
   port_generator_active_out_.write(true);
 
-  trajectory_msgs::JointTrajectoryConstPtr trj_ptr_tmp;
+  trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal trj_ptr_tmp;
   if (port_trajectory_in_.read(trj_ptr_tmp) == RTT::NewData) {
-    std::cout<<"lol"<<std::endl;
-    trajectory_ = trj_ptr_tmp;
+    //std::cout<<"lol"<<std::endl;
+    trajectory_ = trj_ptr_tmp.trajectory;
+    //std::cout<<std::to_string(trj_ptr_tmp.max_velocities[0])<<std::endl;
     trajectory_ptr_ = 0;
     old_point_ = setpoint_;
     for(auto& ov: old_velocities_){
@@ -168,7 +207,14 @@ void InternalSpaceSplineTrajectoryGeneratorLimits::updateHook() {
     }
     last_point_not_set_ = true;
     trajectory_active_ = true;
-    std::cout<<"lol 10"<<std::endl;
+    if(trj_ptr_tmp.research_mode){
+      //std::cout<<"lol"<<std::endl;
+      max_velocities_ = trj_ptr_tmp.max_velocities;
+      //std::cout<<std::to_string(max_velocities_[0])<<std::endl;
+      max_accelerations_ = trj_ptr_tmp.max_accelerations;
+    }
+
+    //std::cout<<"lol 10"<<std::endl;
 //   std::cout << std::endl<< "InternalSpaceSplineTrajectoryGeneratorLimits new trj" << std::endl<< std::endl<< std::endl;
   }
 
@@ -189,63 +235,81 @@ void InternalSpaceSplineTrajectoryGeneratorLimits::updateHook() {
   }
   last_time_ = now;
 
-  if (trajectory_active_ && trajectory_ && (trajectory_->header.stamp < now)) {
+  if (trajectory_active_ && (trajectory_.header.stamp < now)) {
     //std::cout<<"lol 1"<<trajectory_active_<<trajectory_<<std::endl;
 
-    double t = (now - trajectory_->header.stamp).toSec();
+    double t = now.toSec();
     if(std::any_of(active_points_.begin(), active_points_.end(),[](bool ap){return ap;})){
-      std::cout<<"lol 2"<<std::endl;
+      //std::cout<<"lol 4"<<std::endl;
       for(unsigned int i = 0; i < number_of_joints_; i++){
-        if(end_times_[i]>t){
+        if(end_times_[i]>t && active_points_[i]==true){
           setpoint_(i) = vel_profile_[i].Pos(t);
         } else {
           active_points_[i]=false;
         }
       }
-    } else if(trajectory_ptr_< trajectory_->points.size()){
-      std::cout<<"lol 3"<<std::endl;
+    } else if(trajectory_ptr_< trajectory_.points.size()){
+      //std::cout<<"lol 2"<<std::endl;
       for(unsigned int i = 0; i < number_of_joints_; i++){
-        if(vel_profile_[i].SetProfileTrapezoidal(
-          old_point_(i),
-          trajectory_->points[trajectory_ptr_].positions[i],
-          old_velocities_[i],
-          trajectory_->points[trajectory_ptr_].velocities[i],
-          max_velocities_[i],
-          max_accelerations_[i],
-          t,
-          lowerLimits_[i],
-          upperLimits_[i],
-          research_mode_)
-        ){
-          end_times_[i] = vel_profile_[i].Duration()+t;
-          active_points_[i]=true;
+        //std::cout<<std::to_string(max_velocities_[i])<<std::endl;
+        int result = vel_profile_[i].SetProfileTrapezoidal(
+                                      old_point_(i),
+                                      trajectory_.points[trajectory_ptr_].positions[i],
+                                      old_velocities_[i],
+                                      trajectory_.points[trajectory_ptr_].velocities[i],
+                                      max_velocities_[i],
+                                      max_accelerations_[i],
+                                      t,
+                                      lowerLimits_[i],
+                                      upperLimits_[i],
+                                      research_mode_);
+        vel_profile_[i].printCoeffs();
+        if(result == trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::SUCCESSFUL){
+          //std::cout<<"lol 3"<<std::endl;
+          if(vel_profile_[i].Duration() != 0.0){
+            //std::cout<<"lol 4"<<std::endl;
+            end_times_[i] = vel_profile_[i].Duration()+t;
+            active_points_[i]=true;
+            //std::cout<<"end time i:"<<std::to_string(i)<<
+            //           " = "<<std::to_string(end_times_[i])<<std::endl;
+          }
         } else {
-          errMsg_ = vel_profile_[i].getErrorMsg();
-          std::cout<<"i:"<<i<<" errMsg:"<<errMsg_<<std::endl;
-          RTT::Logger::log(RTT::Logger::Debug) << errMsg_ << RTT::endlog();
-          errNo_ = std_msgs::Int16();
-          errNo_.data = -1;
-          port_is_trajectory_feasible_.write(errNo_);
-          std::cout<<"wrote: errNo_:"<<errNo_<<std::endl;
-          trajectory_ = trajectory_msgs::JointTrajectoryConstPtr();
+          trapezoidal_trajectory_msgs::TrapezoidGeneratorResult res = trapezoidal_trajectory_msgs::TrapezoidGeneratorResult();
+          res.error_string = vel_profile_[i].getErrorMsg() + " in joint :" + std::to_string(i);
+          //std::cout<<res.error_string<<std::endl;
+          res.error_code = result;
+          RTT::Logger::log(RTT::Logger::Debug) << res.error_string <<std::endl<<"On joint no:"<<i<< RTT::endlog();
+          std::cout<<result<<std::endl;
+          port_generator_result_.write(res);
+          saveDataToFile();
+          trajectory_active_=false;
           break;
         }
       }
       ++trajectory_ptr_;
     } else {
-      std::cout<<"lol 5"<<std::endl;
+      //std::cout<<"lol 5"<<std::endl;
       for (unsigned int i = 0; i < number_of_joints_; i++) {
-        setpoint_(i) = trajectory_->points[trajectory_->points.size() - 1]
+        setpoint_(i) = trajectory_.points[trajectory_.points.size() - 1]
             .positions[i];
       }
       for(auto&& ap: active_points_){
         ap= false;
       }
-      trajectory_ = trajectory_msgs::JointTrajectoryConstPtr();
+      trapezoidal_trajectory_msgs::TrapezoidGeneratorResult res = trapezoidal_trajectory_msgs::TrapezoidGeneratorResult();
+      res.error_string = " ";
+      res.error_code = trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::SUCCESSFUL;
+      //std::cout<<res.error_code <<std::endl;
+      port_generator_result_.write(res);
+      trajectory_active_=false;
+      saveDataToFile();
     }
   }
+  port_internal_space_position_measurement_in_.read(des_jnt_pos_);
+  jnt_results_.push_back(des_jnt_pos_);
   //std::cout<<setpoint_<<std::endl;
-  //std::cout<<"update iter:"<<update_hook_iter_<<std::endl;
+  //std::cout<<"pos:"<<setpoint_(0)<<" time:"<<std::to_string(now.toSec())<<std::endl;
+  setpoint_results_.push_back(setpoint_);
   port_internal_space_position_command_out_.write(setpoint_);
 }
 

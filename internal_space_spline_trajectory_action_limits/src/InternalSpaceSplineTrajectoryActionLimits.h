@@ -57,14 +57,18 @@
 #include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <trajectory_msgs/JointTrajectory.h>
 
+#include <trapezoidal_trajectory_msgs/TrapezoidTrajectoryAction.h>
+#include <trapezoidal_trajectory_msgs/TrapezoidGeneratorResult.h>
+#include <trapezoidal_trajectory_msgs/TrapezoidGeneratorGoal.h>
+
 #include <std_msgs/Int16.h>
 
 //#include "../../internal_space_spline_trajectory_generator/src/velocityprofile_spline.hpp"
 
 class InternalSpaceSplineTrajectoryActionLimits : public RTT::TaskContext {
  private:
-  typedef actionlib::ServerGoalHandle<control_msgs::FollowJointTrajectoryAction> GoalHandle;
-  typedef boost::shared_ptr<const control_msgs::FollowJointTrajectoryGoal> Goal;
+  typedef actionlib::ServerGoalHandle<trapezoidal_trajectory_msgs::TrapezoidTrajectoryAction> GoalHandle;
+  typedef boost::shared_ptr<const trapezoidal_trajectory_msgs::TrapezoidTrajectoryGoal> Goal;
 
  public:
   explicit InternalSpaceSplineTrajectoryActionLimits(const std::string& name);
@@ -75,16 +79,16 @@ class InternalSpaceSplineTrajectoryActionLimits : public RTT::TaskContext {
   void updateHook();
 
  protected:
-  RTT::OutputPort<trajectory_msgs::JointTrajectoryConstPtr> trajectory_ptr_port_;
+  RTT::OutputPort<trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal> trajectory_ptr_port_;
 
   RTT::Property<int> numberOfJoints_prop_;
 
-  RTT::InputPort<trajectory_msgs::JointTrajectory> command_port_;
+  RTT::InputPort<trapezoidal_trajectory_msgs::TrapezoidTrajectoryGoal> command_port_;
 
   RTT::InputPort<Eigen::VectorXd> port_joint_position_;
   RTT::InputPort<Eigen::VectorXd> port_joint_position_command_;
 
-  RTT::InputPort<std_msgs::Int16> port_is_trajectory_feasible_;
+  RTT::InputPort<trapezoidal_trajectory_msgs::TrapezoidGeneratorResult> port_generator_result_;
 
  private:
   void goalCB(GoalHandle gh);
@@ -113,14 +117,12 @@ class InternalSpaceSplineTrajectoryActionLimits : public RTT::TaskContext {
   ros::Time trajectory_finish_time_;
 
   // RTT action server
-  rtt_actionlib::RTTActionServer<control_msgs::FollowJointTrajectoryAction> as_;
+  rtt_actionlib::RTTActionServer<trapezoidal_trajectory_msgs::TrapezoidTrajectoryAction> as_;
   bool goal_active_;
   GoalHandle activeGoal_;
   bool enable_;
 
-  control_msgs::FollowJointTrajectoryFeedback feedback_;
-
-  std_msgs::Int16 errMsg;
+  trapezoidal_trajectory_msgs::TrapezoidTrajectoryFeedback feedback_;
 };
 
 #endif  // INTERNALSPACESPLINETRAJECTORYACTIONLIMITS_H_

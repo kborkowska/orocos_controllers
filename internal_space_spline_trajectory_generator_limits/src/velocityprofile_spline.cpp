@@ -45,7 +45,10 @@ static inline void generatePowers(int n, double x, double* powers) {
 
 
 VelocityProfile_Spline::VelocityProfile_Spline() {
-  fillPropertiesWithZeros();
+  fillCoeffsWithZeros();
+  duration_ = 0.0;
+  error_msg_ = " ";
+  epsi_ = 0.001;
   return;
 }
 
@@ -73,8 +76,7 @@ VelocityProfile_Spline::VelocityProfile_Spline(
   return;
 }
 
-void VelocityProfile_Spline::fillPropertiesWithZeros(){
-  duration_ = 0.0;
+void VelocityProfile_Spline::fillCoeffsWithZeros(){
   ap_time_ = 0.0;
   dp_time_ = 0.0;
   bg_time_ = 0.0;
@@ -91,7 +93,6 @@ void VelocityProfile_Spline::fillPropertiesWithZeros(){
   dp_coeff_[1] = 0.0;
   dp_coeff_[2] = 0.0;
 
-  error_msg_ = " ";
 }
 
 std::string VelocityProfile_Spline::getErrorMsg() const{
@@ -137,17 +138,16 @@ bool VelocityProfile_Spline::trajectoryIsFeasible(
                  "; vel2="+std::to_string(vel2)+"; acc_max="+std::to_string(acc_max)+
                  "; displacement="+std::to_string(distance)+ ";";
   }
-
-  if(!error_msg_.compare(" ")){
-    return false;
-  } else {
+  if(error_msg_.compare(" ")==0){
     return true;
+  } else {
+    return false;
   }
 }
 
 bool VelocityProfile_Spline::calculateCoeffs(
   double pos1, double pos2, double vel1, double vel2, double vel_max){
-  fillPropertiesWithZeros();
+  //fillCoeffsWithZeros();
   if(duration_<= 0.0){
     error_msg_ = "Duration less, or equal zero with nonzero distance. duration_="+std::to_string(duration_)+
                  "; displacement="+std::to_string((pos2-pos1))+";";
@@ -169,6 +169,21 @@ bool VelocityProfile_Spline::calculateCoeffs(
   return true;
 }
 
+void VelocityProfile_Spline::printCoeffs(){
+  prf(ap_coeff_[0]);
+  prf(ap_coeff_[1]);
+  prf(ap_coeff_[2]);
+  prf(cvp_coeff_[0]);
+  prf(cvp_coeff_[1]);
+  prf(cvp_coeff_[2]);
+  prf(dp_coeff_[0]);
+  prf(dp_coeff_[1]);
+  prf(dp_coeff_[2]);
+}
+
+void VelocityProfile_Spline::prf(double x, std::string name){
+  std::cout<<name<<std::to_string(x)<<std::endl;
+}
 
 bool VelocityProfile_Spline::maxVelocityIsReachable(
       double distance, double vel1, double vel2,
@@ -184,19 +199,19 @@ bool VelocityProfile_Spline::trajectoryBreachesPositionLimits(
     double time_a = (-1)*ap_coeff_[1]/(2*ap_coeff_[2]);
     double time_d = (-1)*dp_coeff_[1]/(2*dp_coeff_[2]);
     error_msg_ = " ";
-    if(bg_time_ < time_a && 
-       time_a < bg_time_+ap_time_){
+    if(bg_time_ < time_a+bg_time_ && 
+       time_a+bg_time_ < bg_time_+ap_time_){
       error_msg_ = "Position breached further into trajectory. time_a=" +std::to_string(time_a)+ ";";
     }
-    if(bg_time_+duration_-dp_time_ < time_d && 
-       time_d < bg_time_+duration_){
-      if(!error_msg_.compare(" ")){
-        error_msg_ = "Position breached further into trajectory. time_d=" +std::to_string(time_d)+ ";";
-      } else {
+    if(bg_time_+duration_-dp_time_ < time_d+bg_time_ && 
+       time_d+bg_time_ < bg_time_+duration_){
+      if(error_msg_.compare(" ")==0){
         error_msg_.append(" time_d=" +std::to_string(time_d)+ ";");
+      } else {
+        error_msg_ = "Position breached further into trajectory. time_d=" +std::to_string(time_d)+ ";";
       }
     }
-    if(!error_msg_.compare(" ")){
+    if(error_msg_.compare(" ")==0){
       return true;
     } else {
       return false;
@@ -222,59 +237,78 @@ void VelocityProfile_Spline::SetProfileDuration(double pos1, double pos2,
 
 
 
-bool VelocityProfile_Spline::SetProfileTrapezoidal(
+int VelocityProfile_Spline::SetProfileTrapezoidal(
       double pos1, double pos2, double vel_max, double acc_max,
       double lower_limit, double upper_limit, bool research_mode){
-  SetProfileTrapezoidal(pos1, pos2, 0.0, 0.0,vel_max, acc_max, 0.0, lower_limit, upper_limit, research_mode);
+  return SetProfileTrapezoidal(pos1, pos2, 0.0, 0.0,vel_max, acc_max, 0.0, lower_limit, upper_limit, research_mode);
 }
 
 
 
-bool VelocityProfile_Spline::SetProfileTrapezoidal(
+int VelocityProfile_Spline::SetProfileTrapezoidal(
       double pos1, double pos2, double vel1, double vel2,
       double vel_max, double acc_max, 
       double lower_limit, double upper_limit, bool research_mode){
-  SetProfileTrapezoidal(pos1, pos2, vel1, vel2, vel_max, acc_max, 0.0, lower_limit, upper_limit,research_mode);
+  return SetProfileTrapezoidal(pos1, pos2, vel1, vel2, vel_max, acc_max, 0.0, lower_limit, upper_limit,research_mode);
 }
 
 
 
-bool VelocityProfile_Spline::SetProfileTrapezoidal(
+int VelocityProfile_Spline::SetProfileTrapezoidal(
       double pos1, double pos2, double vel1, double vel2,
       double vel_max, double acc_max, double time1,
       double lower_limit, double upper_limit, bool research_mode){
 
+  fillCoeffsWithZeros();
+  duration_=0.0;
   error_msg_ = " ";
   double distance = pos2-pos1;
-  int sign = distance/(abs(distance));
+  std::cout<<"distance = "<<distance<<std::endl;
+  int sign = 1;
+  if(distance < 0.0){
+    sign = -1;
+  }
   bg_time_ = time1;
+  distance = distance*sign;
 
-  if(distance == 0.0){
-    fillPropertiesWithZeros();
-    return true;
+  if(research_mode && distance < epsi_ && distance > -epsi_){
+    return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::SUCCESSFUL;
   }
 
   // if by accident the given max velocity is lower then 0,
   // and therefore making it impossible to compute dration
   // the program assumes it suppose to be an absolute value
-  vel_max = abs(vel_max);
+  if(vel_max<0.0){
+    vel_max = (-1)*vel_max;
+  }
+  //std::cout<<"vel_max = "<<vel_max<<std::endl;
 
   if(!trajectoryIsFeasible(distance, vel1, vel2, vel_max, acc_max, lower_limit, upper_limit, research_mode)){
-    return false;
+    return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::TRAJECTORY_NOT_FEASIBLE;
   }
 
-  //calculate duration of constant phase
-  std::cout<<"vel_max:"<<vel_max<<" acc_max:"<<acc_max<<std::endl;
+  //calculate duration of the movement
+  //std::cout<<"vel_max:"<<vel_max<<" acc_max:"<<acc_max<<std::endl;
   duration_ = distance/vel_max + (vel_max/(2*acc_max))*(((1- sign*vel1/vel_max)*(1- sign*vel1/vel_max))+((1- sign*vel2/vel_max)*(1- sign*vel2/vel_max)));
-  ap_time_ = abs(sign*vel_max-vel1)/acc_max;
-  dp_time_ = abs(sign*vel_max-vel2)/acc_max;
+  std::cout<<"duration = "<<duration_<<std::endl;
+  ap_time_ = (sign*vel_max-vel1)/acc_max;
+  dp_time_ = (sign*vel_max-vel2)/acc_max;
+  if(ap_time_<0.0){
+    ap_time_ = (-1)*ap_time_;
+  }
+  if(dp_time_<0.0){
+    dp_time_ = (-1)*dp_time_;
+  }
+  prf(sign, "sign = ");
+  prf(ap_time_, "ap_time_ = ");
+  prf(dp_time_, "dp_time_ = ");
   // check if, despite possibility of reching the goal, it will be done with smaller velocity
   if(!maxVelocityIsReachable(distance, vel1, vel2, vel_max, acc_max)){
     if(research_mode){
       error_msg_ = "Max velocity unreachable. vel1=" +std::to_string(vel1)+
                    "; vel2="+std::to_string(vel2)+"; vel_max="+std::to_string(vel_max)+
                    "; acc_max="+std::to_string(acc_max)+"; displacement="+std::to_string(distance)+";";
-      return false;
+      return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::MAX_VEL_UNREACHEABLE;
     } else {
       vel_max=sqrt(distance*acc_max + (vel1*vel1 + vel2*vel2)/2);
       ap_time_=(vel_max-vel1)/acc_max;
@@ -286,14 +320,14 @@ bool VelocityProfile_Spline::SetProfileTrapezoidal(
   vel_max = sign*vel_max;
 
   if(!calculateCoeffs(pos1, pos2, vel1, vel2, vel_max)){
-    return false;
+    return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::CANT_CALCULATE_COEFFS;
   }
 
-  if(trajectoryBreachesPositionLimits(pos1, pos2, lower_limit, upper_limit)){
-    return false;
+  if(!trajectoryBreachesPositionLimits(pos1, pos2, lower_limit, upper_limit)){
+    return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::BREACHED_POS_LIMIT;
   }
 
-  return true;
+  return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::SUCCESSFUL;
 
 }
 

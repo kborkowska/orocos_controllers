@@ -2,21 +2,25 @@
 #define VELOCITYPROFILE_SPLINE_H
 
 #include "kdl/velocityprofile.hpp"
+#include <trapezoidal_trajectory_msgs/TrapezoidGeneratorResult.h>
+#include <trapezoidal_trajectory_msgs/TrapezoidGeneratorGoal.h>
+
+#include <string.h>
 
 namespace KDL
 {
-	/**
-	 * \brief A spline VelocityProfile trajectory interpolation.
-	 * @ingroup Motion
-	 */
+    /**
+     * \brief A spline VelocityProfile trajectory interpolation.
+     * @ingroup Motion
+     */
 class VelocityProfile_Spline : public VelocityProfile
 {
 public:
     VelocityProfile_Spline();
     VelocityProfile_Spline(const VelocityProfile_Spline &p);
 
-	virtual ~VelocityProfile_Spline();
-	
+    virtual ~VelocityProfile_Spline();
+    
     virtual void SetProfile(double pos1, double pos2);
 
     virtual void SetProfileDuration(
@@ -29,7 +33,7 @@ public:
      * @param vel max velocity.
      * @param acc max acceleration.
      */
-    virtual bool SetProfileTrapezoidal(
+    virtual int SetProfileTrapezoidal(
       double pos1, double pos2, double vel_max, double acc_max,
       double lower_limit, double upper_limit, bool research_mode);
     /**
@@ -43,7 +47,7 @@ public:
      * @param acc_max max acceleration.
      * @param time1 time of the movement beggining.
      */
-    virtual bool SetProfileTrapezoidal(
+    virtual int SetProfileTrapezoidal(
       double pos1, double pos2, double vel1, double vel2,
       double vel_max, double acc_max, double time1,
       double lower_limit, double upper_limit, bool research_mode);
@@ -57,7 +61,7 @@ public:
      * @param vel_max max acceleration.
      * @param acc_max max acceleration.
      */
-    virtual bool SetProfileTrapezoidal(
+    virtual int SetProfileTrapezoidal(
       double pos1, double pos2, double vel1, double vel2,
       double vel_max, double acc_max,
       double lower_limit, double upper_limit, bool research_mode);
@@ -69,6 +73,7 @@ public:
     virtual void Write(std::ostream& os) const;
     virtual VelocityProfile* Clone() const;
     virtual std::string getErrorMsg() const;
+    virtual void printCoeffs(void) ;
 private:
 
 /*
@@ -89,17 +94,19 @@ private:
     double cvp_coeff_[3]; //constant velocity phase coeffs
     double dp_coeff_[3]; // decceleration phase coeffs 
     std::string error_msg_;
+    double epsi_;
 
     virtual bool trajectoryIsFeasible(
       double distance, double vel1, double vel2,
       double vel_max, double acc_max,
       double lower_limit, double upper_limit, bool research_mode);
-    virtual void fillPropertiesWithZeros();
+    virtual void fillCoeffsWithZeros();
     virtual bool calculateCoeffs(double pos1, double pos2, double vel1, double vel2, double vel_max);
     virtual bool maxVelocityIsReachable(double distance, double vel1, double vel2,
                                         double vel_max, double acc_max);
     virtual bool trajectoryBreachesPositionLimits(
       double pos1, double pos2, double lower_limit, double upper_limit);
+    void prf(double x, std::string name = "coeff: ") ;
 };
 }
 #endif // VELOCITYPROFILE_CUBICSPLINE_H
