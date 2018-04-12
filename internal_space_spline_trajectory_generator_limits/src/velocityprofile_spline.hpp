@@ -33,9 +33,9 @@ public:
      * @param vel max velocity.
      * @param acc max acceleration.
      */
-    virtual int SetProfileTrapezoidal(
-      double pos1, double pos2, double vel_max, double acc_max,
-      double lower_limit, double upper_limit, bool research_mode);
+    virtual int SetProfileResearch(
+      double pos1, double pos2,
+      double pos_min, double pos_max, bool research_mode);
     /**
      * Generate trapezoid interpolation coeffcients.
      *
@@ -47,10 +47,9 @@ public:
      * @param acc_max max acceleration.
      * @param time1 time of the movement beggining.
      */
-    virtual int SetProfileTrapezoidal(
-      double pos1, double pos2, double vel1, double vel2,
-      double vel_max, double acc_max, double time1,
-      double lower_limit, double upper_limit, bool research_mode);
+    virtual int SetProfileResearch(
+      double pos1, double pos2, double vel1, double vel2, double time1,
+      double pos_min, double pos_max, bool research_mode);
         /**
      * Generate trapezoid interpolation coeffcients.
      *
@@ -61,10 +60,9 @@ public:
      * @param vel_max max acceleration.
      * @param acc_max max acceleration.
      */
-    virtual int SetProfileTrapezoidal(
+    virtual int SetProfileResearch(
       double pos1, double pos2, double vel1, double vel2,
-      double vel_max, double acc_max,
-      double lower_limit, double upper_limit, bool research_mode);
+      double pos_min, double pos_max, bool research_mode);
 
     virtual double Duration() const;
     virtual double Pos(double time) const;
@@ -74,6 +72,7 @@ public:
     virtual VelocityProfile* Clone() const;
     virtual std::string getErrorMsg() const;
     virtual void printCoeffs(void) ;
+    virtual void setLimitValues(double max_vel, double max_acc)
 private:
 
 /*
@@ -96,17 +95,19 @@ private:
     std::string error_msg_;
     double epsi_;
 
+    double vel_max_;
+    double acc_max_;
+    double pos_max_;
+    double pos_min_;
+
     virtual bool trajectoryIsFeasible(
-      double distance, double vel1, double vel2,
-      double vel_max, double acc_max,
-      double lower_limit, double upper_limit, bool research_mode);
+      double distance, double vel1, double vel2, bool research_mode);
     virtual void fillCoeffsWithZeros();
     virtual bool calculateCoeffs(double pos1, double pos2, double vel1, double vel2, double vel_max);
-    virtual bool maxVelocityIsReachable(double distance, double vel1, double vel2,
-                                        double vel_max, double acc_max);
-    virtual bool trajectoryBreachesPositionLimits(
-      double pos1, double pos2, double lower_limit, double upper_limit);
-    void prf(double x, std::string name = "coeff: ") ;
+    virtual bool maxVelocityIsReachable(double distance, double vel1, double vel2);
+    virtual bool trajectoryBreachesPositionLimits();
+    void prf(double x, std::string name = "coeff: ");
+    virtual bool accMaxIsEnoughForDuration(double distance, double vel1, double vel2);
 };
 }
 #endif // VELOCITYPROFILE_CUBICSPLINE_H
