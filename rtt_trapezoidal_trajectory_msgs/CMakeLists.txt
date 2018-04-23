@@ -1,6 +1,6 @@
 
 cmake_minimum_required(VERSION 2.8.3)
-project(rtt_trajectory_msgs)
+project(rtt_trapezoidal_trajectory_msgs)
 
 find_package(catkin REQUIRED COMPONENTS rtt_roscomm)
 
