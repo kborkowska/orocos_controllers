@@ -49,7 +49,7 @@ VelocityProfile_Trapezoid::VelocityProfile_Trapezoid() {
   fillCoeffsWithZeros();
   duration_ = 0.0;
   error_msg_ = " ";
-  epsi_ = 0.001;
+  epsi_ = 0.002;
   return;
 }
 
@@ -176,6 +176,14 @@ bool VelocityProfile_Trapezoid::calculateCoeffs(
     dp_coeff_[2] = (vel2-vel_max)/(2*dp_time_);
   }
   printCoeffs();
+  //prf(bg_time_, "begin time: ");
+  //prf(pos1, "pos1: ");
+  //prf(pos2, "pos2: ");
+  //prf(vel1, "vel1: ");
+  //prf(vel2, "vel2: ");
+  //prf(vel_max, "vel_max: ");
+  //prf(ap_time_, "ap_time_: ");
+  //prf(dp_time_, "dp_time_: ");
   return true;
 }
 
@@ -228,19 +236,25 @@ bool VelocityProfile_Trapezoid::maxVelocityIsUnreachable(
     std::cout<<"[VEL]maxVelocityIsUnreachable"<<std::endl;
     return true;
   }
-  std::cout<<"[VEL]maxVsmdmf"<<std::endl;
+  std::cout<<"[VEL] max velocity is reachable "<<std::endl;
   return false;
 }
 
 bool VelocityProfile_Trapezoid::accMaxIsEnoughForDuration(
       double distance, double vel1, double vel2, double acc_max){
-  if(acc_max < (2*distance 
+  double limit = epsi_ - (2*distance 
                  - duration_*(vel1+vel2) 
                  + sqrt(4*distance*distance 
                         - 4*distance*(vel1+vel2)*duration_ 
                         + 2*(vel1*vel1+vel2*vel2)*duration_*duration_
                         )
-                 )/(duration_*duration_)){
+                 )/(duration_*duration_);
+  if(acc_max < limit){
+    error_msg_ = "impossible velocity. acc_max="+std::to_string(acc_max)
+                    + "; limit_="+std::to_string(limit)
+                    + "; duration_="+std::to_string(duration_)
+                    + "; distance="+std::to_string(distance)
+                    + "; vel1="+std::to_string(vel1)+ "; vel2="+std::to_string(vel2);
     return false;
   }
   return true;
@@ -316,9 +330,10 @@ int VelocityProfile_Trapezoid::SetProfileDuration(double time1, double duration,
                                                      double pos_min, double pos_max,
                                                      bool research_mode){
   error_msg_ = " ";
+  std::cout<<"[VEL] tries to set duration based"<<std::endl;
   //fillCoeffsWithZeros();
   //duration_=0.0;
-  double duration_ = duration;
+  duration_ = duration;
   double distance = pos2-pos1;
   int sign = 1;
   if(distance < 0.0){
@@ -337,7 +352,13 @@ int VelocityProfile_Trapezoid::SetProfileDuration(double time1, double duration,
   double vel = 0.5*(vel1+vel2+acc_max*duration_
                    -sqrt((acc_max*acc_max)*(duration_*duration_)
                           -4*acc_max*distance+2*acc_max*(vel1+vel2)*duration_-(vel1-vel2)*(vel1-vel2)));
-  if(vel < vel_max + epsi_ || vel > -1*vel_max - epsi_){
+  if(vel > vel_max + epsi_ || vel < -1*vel_max - epsi_){
+    error_msg_ = "impossible velocity. vel=" +std::to_string(vel)
+                    + "; vel_max="+std::to_string(vel_max)
+                    + "; acc_max="+std::to_string(acc_max)
+                    + "; duration_="+std::to_string(duration_)
+                    + "; distance="+std::to_string(distance)
+                    + "; vel1="+std::to_string(vel1)+ "; vel2="+std::to_string(vel2);
     return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::IMPOSSIBLE_VELOCITY;
   }
   vel1 = sign*vel1;
@@ -352,6 +373,13 @@ int VelocityProfile_Trapezoid::SetProfileDuration(double time1, double duration,
     return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::TRAJECTORY_NOT_FEASIBLE;
   }
 
+  prf(duration_,"duration_: ");
+  prf(ap_time_,"ap_time_: ");
+  prf(dp_time_,"dp_time_: ");
+  prf(vel, "vel: ");
+  prf(distance,"distance: ");
+  prf(acc_max,"acc_max: ");
+  prf(bg_time_,"bg_time_: ");
   if(!calculateCoeffs(pos1, pos2, vel1, vel2, vel_max)){
     return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::CANT_CALCULATE_COEFFS;
   }
@@ -385,8 +413,13 @@ double VelocityProfile_Trapezoid::calculateDuration(double pos1, double pos2,
     sign = -1;
   }
   distance = distance*sign;
+  acc_max = acc_max*sign;
+  vel_max = vel_max*sign;
+  prf(distance, "distance= ");
+  prf(vel_max, "vel_max= ");
+  prf(acc_max, "acc_max= ");
 
-  duration_ = distance/vel_max
+  duration_ = sign*distance/vel_max
               + (vel_max/(2*acc_max))*(((1- vel1/vel_max)*(1- vel1/vel_max))
               + ((1- vel2/vel_max)*(1- vel2/vel_max)));
 
@@ -427,7 +460,7 @@ int VelocityProfile_Trapezoid::SetProfileVelocity(double time1,
   error_msg_ = " ";
   //fillCoeffsWithZeros();
   //duration_=0.0;
-
+  std::cout<<"[VEL] tries to set velocity based"<<std::endl;
   double distance = pos2-pos1;
   int sign = 1;
   if(distance < 0.0){

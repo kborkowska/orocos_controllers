@@ -154,6 +154,8 @@ bool InternalSpaceTrapezoidTrajectoryAction::positionViolationOccurs(Goal g){
 
 void InternalSpaceTrapezoidTrajectoryAction::updateHook() {
   //checking for joint position for feedback publishing
+
+  //std::cout<<"falafel 2"<<std::endl;
   bool joint_position_data = true;
   if (port_joint_position_.read(joint_position_) == RTT::NoData) {
     joint_position_data = false;
@@ -162,6 +164,7 @@ void InternalSpaceTrapezoidTrajectoryAction::updateHook() {
   //std::cout<<"reading port_joint_position_command"<<std::endl;
   port_joint_position_command_.read(desired_joint_position_);
   //end goal
+
   Goal g = activeGoal_.getGoal();
   //std::cout<<"got goal in updateHook"<<std::endl;
   //msgs for comunication with generator
@@ -181,6 +184,7 @@ void InternalSpaceTrapezoidTrajectoryAction::updateHook() {
         activeGoal_.setSucceeded(res, "");
       }
     } else {
+      //std::cout<<"falafel"<<std::endl;
       res.result.error_code = genMsg.error_code;
       res.result.error_string = genMsg.error_string;
       activeGoal_.setAborted(res, "");
@@ -258,6 +262,12 @@ bool InternalSpaceTrapezoidTrajectoryAction::remapJointsAndLimits(
             "not enough limit values for velocites for"<<
             " accelerations for research mode";
       return false;
+    } else {
+      //remap max_vel and max_acc tables
+      for (unsigned int j = 0; j < numberOfJoints_;j++) {
+        max_vel[j] = g->max_velocities[remapTable_[j]];
+        max_acc[j] = g->max_accelerations[remapTable_[j]];
+      }
     }
   }
   for (unsigned int i = 0; i < g->trajectory.points.size(); i++) {
@@ -287,11 +297,6 @@ bool InternalSpaceTrapezoidTrajectoryAction::remapJointsAndLimits(
 
     trj_ptr->points[i].time_from_start = g->trajectory.points[i]
         .time_from_start;
-  }
-  //remap max_vel and max_acc tables
-  for (unsigned int j = 0; j < numberOfJoints_;j++) {
-    max_vel[j] = g->max_velocities[remapTable_[j]];
-    max_acc[j] = g->max_accelerations[remapTable_[j]];
   }
 
   return true;

@@ -83,11 +83,12 @@ class InternalSpaceTrapezoidTrajectoryGenerator : public RTT::TaskContext {
   bool isTheLastTrajectoryPointReached();
   bool setVelocityProfiles(double t, bool is_velocity_based_);
   void setLastPointsAndSendSuccesMsg();
-  void generatePositions(double t);
+  void generatePositions(double t, bool is_velocity_based_);
   void updateHookWithVelocityBasedProfiles(ros::Time now, bool save_data);
   bool phaseTimeHasPassed(double t);
   bool calculatePhaseDuration(double t);
   void updateHookWithDurationBasedProfiles(ros::Time now, bool save_data);
+  void prf(double x, std::string name = "[GEN]: ");
 
   //bool last_point_not_set_;
   bool trajectory_active_;
@@ -99,7 +100,7 @@ class InternalSpaceTrapezoidTrajectoryGenerator : public RTT::TaskContext {
   std::vector <Eigen::VectorXd> setpoint_results_, jnt_results_;
 
   trajectory_msgs::JointTrajectory trajectory_;
-  size_t trajectory_point_index_;
+  int trajectory_point_index_;
 
   ros::Time last_time_;
   int update_hook_iter_;
