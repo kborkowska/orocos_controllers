@@ -78,16 +78,16 @@ class InternalSpaceTrapezoidTrajectoryGenerator : public RTT::TaskContext {
   virtual void saveDataToFile() const;
   trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal getNewGoalAndInitData(void);
   void adjustTimeFrames(ros::Time now);
-  void sendPositions(bool saveData);
+  void sendPositions();
   bool isAnyJointStillInMotion();
   bool isTheLastTrajectoryPointReached();
   bool setVelocityProfiles(double t, bool is_velocity_based_);
   void setLastPointsAndSendSuccesMsg();
   void generatePositions(double t, bool is_velocity_based_);
-  void updateHookWithVelocityBasedProfiles(ros::Time now, bool save_data);
+  void updateHookWithVelocityBasedProfiles(ros::Time now);
   bool phaseTimeHasPassed(double t);
   bool calculatePhaseDuration(double t);
-  void updateHookWithDurationBasedProfiles(ros::Time now, bool save_data);
+  void updateHookWithDurationBasedProfiles(ros::Time now);
   void prf(double x, std::string name = "[GEN]: ");
 
   //bool last_point_not_set_;
@@ -120,6 +120,7 @@ class InternalSpaceTrapezoidTrajectoryGenerator : public RTT::TaskContext {
   double phase_end_time_;
 
   bool research_mode_;
+  bool save_data_;
 
   std::string errMsg_;
   std_msgs::Int16 errNo_;

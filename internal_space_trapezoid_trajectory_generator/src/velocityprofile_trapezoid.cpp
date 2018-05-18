@@ -46,6 +46,7 @@ static inline void generatePowers(int n, double x, double* powers) {
 
 
 VelocityProfile_Trapezoid::VelocityProfile_Trapezoid() {
+  std::cout<<"[VEL] lol"<<std::endl;
   fillCoeffsWithZeros();
   duration_ = 0.0;
   error_msg_ = " ";
@@ -176,7 +177,7 @@ bool VelocityProfile_Trapezoid::calculateCoeffs(
     dp_coeff_[2] = (vel2-vel_max)/(2*dp_time_);
   }
   printCoeffs();
-  //prf(bg_time_, "begin time: ");
+  prf(bg_time_, "begin time: ");
   //prf(pos1, "pos1: ");
   //prf(pos2, "pos2: ");
   //prf(vel1, "vel1: ");
@@ -234,6 +235,10 @@ bool VelocityProfile_Trapezoid::maxVelocityIsUnreachable(
       double distance, double vel1, double vel2, double vel_max, double acc_max, int sign){
   if(distance*acc_max*sign < (vel_max*vel_max - (vel1*vel1 + vel2*vel2)/2)){
     std::cout<<"[VEL]maxVelocityIsUnreachable"<<std::endl;
+    error_msg_ = "Max velocity unreachable. vel1=" +std::to_string(vel1)+
+             "; vel2="+std::to_string(vel2)+"; vel_max="+std::to_string(vel_max)+
+             "; acc_max="+std::to_string(acc_max)+"; displacement="+std::to_string(distance*sign)+
+             "; minimal acc needed="+std::to_string((vel_max*vel_max - (vel1*vel1 + vel2*vel2)/2)/(distance*sign))+";";
     return true;
   }
   std::cout<<"[VEL] max velocity is reachable "<<std::endl;
@@ -458,6 +463,7 @@ int VelocityProfile_Trapezoid::SetProfileVelocity(double time1,
                                                   double pos_min, double pos_max,
                                                   bool research_mode){
   error_msg_ = " ";
+  duration_ = 0.0;
   //fillCoeffsWithZeros();
   //duration_=0.0;
   std::cout<<"[VEL] tries to set velocity based"<<std::endl;
@@ -490,9 +496,6 @@ int VelocityProfile_Trapezoid::SetProfileVelocity(double time1,
   // check if, despite possibility of reching the goal, it will be done with smaller velocity
   if(maxVelocityIsUnreachable(distance, vel1, vel2, vel_max, acc_max, sign)){
     if(research_mode){
-      error_msg_ = "Max velocity unreachable. vel1=" +std::to_string(vel1)+
-                   "; vel2="+std::to_string(vel2)+"; vel_max="+std::to_string(vel_max)+
-                   "; acc_max="+std::to_string(acc_max)+"; displacement="+std::to_string(distance)+";";
       return trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::MAX_VEL_UNREACHEABLE;
     } else {
       vel_max=sqrt(distance*acc_max + (vel1*vel1 + vel2*vel2)/2);
