@@ -105,7 +105,7 @@ private:
     //double pos_min_;
 
     virtual bool trajectoryIsFeasible(
-        double distance, int sign, double vel1, double vel2, double vel_max, double acc_max, bool research_mode);
+        double distance, int sign, double vel1, double vel2, double vel_max, double acc_max, bool research_mode, bool duration=false);
     virtual void fillCoeffsWithZeros();
     virtual bool calculateCoeffs(
         double pos1, double pos2, double vel1, double vel2, double vel_max);

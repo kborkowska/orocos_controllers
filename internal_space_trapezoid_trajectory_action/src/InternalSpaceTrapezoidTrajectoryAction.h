@@ -103,6 +103,7 @@ class InternalSpaceTrapezoidTrajectoryAction : public RTT::TaskContext {
   bool trajectoryHasInvalidPoints(Goal g);
   bool fillRemapTable(Goal g);
   bool positionViolationOccurs(Goal g);
+  bool pathToleranceBreached(Goal g);
   bool getPeersReady();
 
   //std::vector<KDL::VelocityProfile_Spline> vel_profile_;
@@ -127,7 +128,6 @@ class InternalSpaceTrapezoidTrajectoryAction : public RTT::TaskContext {
   rtt_actionlib::RTTActionServer<trapezoidal_trajectory_msgs::TrapezoidTrajectoryAction> as_;
   bool goal_active_;
   GoalHandle activeGoal_;
-  bool enable_;
 
   trapezoidal_trajectory_msgs::TrapezoidTrajectoryFeedback feedback_;
 };

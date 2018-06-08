@@ -63,6 +63,8 @@ InternalSpaceTrapezoidTrajectoryGenerator::InternalSpaceTrapezoidTrajectoryGener
       port_internal_space_position_measurement_in_("JointPosition_INPORT"),
       port_is_synchronised_in_("IsSynchronised_INPORT"),
       ns_interval_(0),
+      save_data_(false),
+      duration_mode_(false),
       research_mode_(true) {
   this->ports()->addPort(port_trajectory_in_);
   this->ports()->addPort(port_internal_space_position_command_out_);
@@ -117,17 +119,13 @@ bool InternalSpaceTrapezoidTrajectoryGenerator::configureHook() {
   ns_lower_bound_ = ns_interval_ * 0.9;
   ns_lower_increment_ = ns_interval_ * 0.95;
 
-  trajectory_active_ = false;
-
   return true;
 }
 
 bool InternalSpaceTrapezoidTrajectoryGenerator::startHook() {
 
   //std::cout<<max_velocities_[0]<<std::endl;
-  std::cout<<"Starting generator"<<std::endl;
-
-
+  //std::cout<<"Starting generator"<<std::endl;
 
   bool is_synchronised = true;
 
@@ -135,7 +133,8 @@ bool InternalSpaceTrapezoidTrajectoryGenerator::startHook() {
       == RTT::NoData) {
     return false;
   }
-  prf(setpoint_(0), "[GEN] initial positions: ");
+  first_point_ = setpoint_;
+  //prf(setpoint_(0), "[GEN] initial positions: ");
 
   port_internal_space_position_measurement_in_.getDataSample(setpoint_);
   if (setpoint_.size() != number_of_joints_) {
@@ -165,7 +164,7 @@ void InternalSpaceTrapezoidTrajectoryGenerator::stopHook() {
   port_generator_active_out_.write(false);
 }
 
-void InternalSpaceTrapezoidTrajectoryGenerator::saveDataToFile() const{
+void InternalSpaceTrapezoidTrajectoryGenerator::saveDataToFile(){
   time_t now = time(0);
   tm *ltm = localtime(&now);
   const char* home = getenv("HOME");
@@ -184,19 +183,11 @@ void InternalSpaceTrapezoidTrajectoryGenerator::saveDataToFile() const{
   std::system(command.c_str());
   std::ofstream myfile;
 
-  //save points from msg
-  myfile.open(path+"user_setpoints.txt");
-  for(int i = 0; i<trajectory_.points.size();++i){
-    for(int k =0; k<number_of_joints_; ++k){
-      myfile << std::to_string(trajectory_.points[i].positions[k])+ " ";
-    }
-    myfile << "\n";
-  }
-  myfile.close();
-
+  //std::cout<<setpoint_results_[500].size()<<std::endl;
   myfile.open(path+"setpoints.txt");
-  for(int i = 0; i<update_hook_iter_;++i){
-    for(int k =0; k<number_of_joints_; ++k){
+  for(int i = 0; i<setpoint_results_.size();++i){
+    for(int k = 0; k<setpoint_results_[i].size(); ++k){
+      //prf( lol, "[GEN][getNewGoalAndInitData] tdcfsdcfsd: " ) ;
       myfile << std::to_string(setpoint_results_[i](k))+ " ";
     }
     myfile << "\n";
@@ -204,9 +195,40 @@ void InternalSpaceTrapezoidTrajectoryGenerator::saveDataToFile() const{
   myfile.close();
 
   myfile.open(path+"results.txt");
-  for(int i = 0; i<update_hook_iter_;++i){
-    for(int k =0; k<number_of_joints_; ++k){
+  for(int i = 0; i<jnt_results_.size();++i){
+    for(int k =0; k<jnt_results_[i].size(); ++k){
       myfile << std::to_string(jnt_results_[i](k))+ " ";
+    }
+    myfile << "\n";
+  }
+  myfile.close();
+  //save points from msg
+  myfile.open(path+"user_setup.txt");
+  if(duration_mode_){
+    myfile << "duratin mode\n";
+  } else {
+    myfile << "velocity mode\n";
+  }
+  myfile << "max velocities\n";
+  for(int k =0; k<number_of_joints_; ++k){
+    myfile << std::to_string(max_velocities_[k])+ " ";
+  }
+  myfile << "\n";
+  myfile << "max accelerations\n";
+  for(int k =0; k<number_of_joints_; ++k){
+    myfile << std::to_string(max_accelerations_[k])+ " ";
+  }
+  myfile << "\n";
+  for(int i = 0; i<trajectory_.points.size();++i){
+    myfile << "starting point\n";
+    for(int k =0; k<number_of_joints_; ++k){
+      myfile << std::to_string(first_point_(k))+ " ";
+    }
+    myfile << "\n";
+    myfile << "setpoint\n";
+    for(int k =0; k<number_of_joints_; ++k){
+      myfile << std::to_string(trajectory_.points[i].positions[k])+ " ";
+      first_point_(k)=trajectory_.points[i].positions[k];
     }
     myfile << "\n";
   }
@@ -225,8 +247,11 @@ trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal InternalSpaceTrapezoidTrajec
     //check wether research mode is on
     //if so init tabels used in this setting
     research_mode_ = trj_ptr_tmp.research_mode;
-    if(research_mode_){
-        for(auto& ov: old_velocities_){
+    duration_mode_ = trj_ptr_tmp.duration_mode;
+    save_data_ = trj_ptr_tmp.save_data;
+
+    if(!duration_mode_){
+      for(auto& ov: old_velocities_){
         ov= 0.0;
       }
       for(auto& et: end_times_){
@@ -236,20 +261,20 @@ trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal InternalSpaceTrapezoidTrajec
         ap= false;
       }
       max_velocities_ = trj_ptr_tmp.max_velocities;
-      std::cout<<"foch"<<std::endl;
+      //std::cout<<"foch"<<std::endl;
       max_accelerations_ = trj_ptr_tmp.max_accelerations;
       //std::cout<<trj_ptr_tmp.max_accelerations[0]<<std::endl;
     } else {
+      //has to be reset everytime 
       phase_end_time_ = 0.0;
     }
     //init data used for establishing when the movement is over
     //last_point_not_set_ = true;
     trajectory_active_ = true;
-    std::cout<<"[GEN]got new goal"<<std::endl;
     //new_point_ = true;
-    save_data_=true;
+    //save_data_=true;
   }
-  //if needed a pointer 
+  //if needed a pointer is provided
   return trj_ptr_tmp;
 }
 
@@ -272,10 +297,10 @@ void InternalSpaceTrapezoidTrajectoryGenerator::adjustTimeFrames(ros::Time now) 
 
 void InternalSpaceTrapezoidTrajectoryGenerator::sendPositions(){
 
-  if(save_data_){
+  if(save_data_ && 
+     update_hook_iter_ < setpoint_results_.size()){
     port_internal_space_position_measurement_in_.read(des_jnt_pos_);
     jnt_results_[update_hook_iter_] = des_jnt_pos_;
-    //std::cout<<setpoint_<<std::endl;
     //std::cout<<"[GEN]pos:"<<setpoint_(0)<<" time:"<<std::to_string(now.toSec())<<std::endl;
     setpoint_results_[update_hook_iter_] = setpoint_;
   }
@@ -294,19 +319,19 @@ void InternalSpaceTrapezoidTrajectoryGenerator::prf(double x, std::string name){
 }
 
 inline bool InternalSpaceTrapezoidTrajectoryGenerator::isTheLastTrajectoryPointReached(){
-  prf(trajectory_point_index_, "[GEN] trajectory_point_index_: ");
+  //prf(trajectory_point_index_, "[GEN] trajectory_point_index_: ");
   //prf(trajectory_.points.size(), "[GEN] trajectory_.points.size(): ");
   //std::cout<<std::to_string(trajectory_point_index_>= (int)trajectory_.points.size())<<std::endl;
   return trajectory_point_index_ >= (int)trajectory_.points.size();
 }
 
-bool InternalSpaceTrapezoidTrajectoryGenerator::setVelocityProfiles(double t, bool is_velocity_based_){
+bool InternalSpaceTrapezoidTrajectoryGenerator::setVelocityProfiles(double t){
   int result;
-  std::cout<<"setting profiles"<<std::endl;
+  //std::cout<<"setting profiles"<<std::endl;
   
   for(unsigned int i = 0; i < number_of_joints_; i++){
-    if(is_velocity_based_){
-      std::cout<<"is_velocity_based_"<<std::endl;
+    if(!duration_mode_){
+      //std::cout<<"is_velocity_based_"<<std::endl;
       /*prf(t,"t=");
       prf(old_point_(i),"old_point_(i)=");
       prf(trajectory_.points[trajectory_point_index_].positions[i],"trajectory_.points[trajectory_point_index_].positions[i]=");
@@ -332,7 +357,7 @@ bool InternalSpaceTrapezoidTrajectoryGenerator::setVelocityProfiles(double t, bo
       if(vel_profile_[i].Duration() != 0.0){
         end_times_[i] = vel_profile_[i].Duration()+t;
         active_points_[i]=true;
-        std::cout<<"set"<<std::endl;
+        //std::cout<<"set"<<std::endl;
       }
     } else {
       result = vel_profile_[i].SetProfileDuration(
@@ -384,8 +409,8 @@ void InternalSpaceTrapezoidTrajectoryGenerator::setLastPointsAndSendSuccesMsg(){
   port_generator_result_.write(res);
 }
 
-void InternalSpaceTrapezoidTrajectoryGenerator::generatePositions(double t, bool is_velocity_based_) {
-  if(is_velocity_based_){
+void InternalSpaceTrapezoidTrajectoryGenerator::generatePositions(double t) {
+  if(!duration_mode_){
     for(unsigned int i = 0; i < number_of_joints_; i++){
       if(end_times_[i]>t && active_points_[i]==true){
         setpoint_(i) = vel_profile_[i].Pos(t);
@@ -400,27 +425,27 @@ void InternalSpaceTrapezoidTrajectoryGenerator::generatePositions(double t, bool
   }
 }
 
+void InternalSpaceTrapezoidTrajectoryGenerator::deactivateTrajectory(){
+  trajectory_active_=false;
+  if(save_data_)
+    saveDataToFile();
+}
+
 void InternalSpaceTrapezoidTrajectoryGenerator::updateHookWithVelocityBasedProfiles(ros::Time now) {
-  if(!(trajectory_active_ && (trajectory_.header.stamp < now))){
-    //std::cout<<"[GEN]trajectory inactive"<<std::endl;
-    return;
-  }
+
   //std::cout<<"[GEN]trajectory is active"<<std::endl;
   double t = now.toSec();
   if(!isAnyJointStillInMotion()){
     if(isTheLastTrajectoryPointReached()){
-      std::cout<<"[GEN] setting last point"<<std::endl;
+      //std::cout<<"[GEN] setting last point"<<std::endl;
       setLastPointsAndSendSuccesMsg();
-      trajectory_active_=false;
-      if(save_data_)
-        saveDataToFile();
+      deactivateTrajectory();
     } else {
-      std::cout<<"[GEN] setting profiles"<<std::endl;
-      if(!setVelocityProfiles(t, true)){
-        std::cout<<"[GEN] setting profiles failed"<<std::endl;
-        trajectory_active_=false;
-        if(save_data_)
-          saveDataToFile();
+      //std::cout<<"[GEN] setting profiles"<<std::endl;
+      bool result = setVelocityProfiles(t);
+      if(!result){
+        //std::cout<<"[GEN] setting profiles failed"<<std::endl;
+        deactivateTrajectory();
       }
       //std::cout<<"[GEN] profiles set"<<std::endl;
     }
@@ -428,7 +453,7 @@ void InternalSpaceTrapezoidTrajectoryGenerator::updateHookWithVelocityBasedProfi
   //std::cout<<"[GEN]done the big if"<<std::endl;
   if(trajectory_active_){
     //std::cout<<"[GEN]started generating positions"<<std::endl;
-    generatePositions(t, true);
+    generatePositions(t);
     //std::cout<<"[GEN]ended generating positions"<<std::endl;
   }
 }
@@ -458,9 +483,6 @@ bool InternalSpaceTrapezoidTrajectoryGenerator::calculatePhaseDuration(double t)
 }
 
 void InternalSpaceTrapezoidTrajectoryGenerator::updateHookWithDurationBasedProfiles(ros::Time now) {
-  if(!(trajectory_active_ && (trajectory_.header.stamp < now))){
-    return;
-  }
 
   double t = now.toSec();
   if(phaseTimeHasPassed(t)){
@@ -468,23 +490,20 @@ void InternalSpaceTrapezoidTrajectoryGenerator::updateHookWithDurationBasedProfi
     if(!isTheLastTrajectoryPointReached()){
       //std::cout<<"[GEN] up to set profiles="<<std::endl;
       calculatePhaseDuration(t);
-      if(!setVelocityProfiles(t, false)){
-        trajectory_active_=false;
-        if(save_data_)
-          saveDataToFile();
+      bool result = setVelocityProfiles(t);
+      if(!result){
+        deactivateTrajectory();
       }
     } else {
       //std::cout<<"[GEN] sentting last point"<<std::endl;
       setLastPointsAndSendSuccesMsg();
-      trajectory_active_=false;
-      if(save_data_)
-        saveDataToFile();
+      deactivateTrajectory();
     }
   } 
 
   if(trajectory_active_){
     //std::cout<<"[GEN] generating positions= "<<trajectory_active_<<std::endl;
-    generatePositions(t, false);
+    generatePositions(t);
   }
 
 }
@@ -499,15 +518,21 @@ void InternalSpaceTrapezoidTrajectoryGenerator::updateHook() {
   ros::Time now = rtt_rosclock::host_now();
   adjustTimeFrames(now);
 
-  if(research_mode_){
-    //std::cout<<"[GEN]starting updateHookWithVelocityBasedProfiles"<<std::endl;
-    updateHookWithVelocityBasedProfiles(now);
-    //std::cout<<"[GEN]ended updateHookWithVelocityBasedProfiles"<<std::endl;
-  } else {
-    //std::cout<<"[GEN]starting updateHookWithDurationBasedProfiles"<<std::endl;
-    updateHookWithDurationBasedProfiles(now);
-    //std::cout<<"[GEN]ended updateHookWithDurationBasedProfiles"<<std::endl;
+  if(trajectory_active_ && (trajectory_.header.stamp < now)){
+
+    if(!duration_mode_){
+      //std::cout<<"[GEN]starting updateHookWithVelocityBasedProfiles"<<std::endl;
+      updateHookWithVelocityBasedProfiles(now);
+      //std::cout<<"[GEN]ended updateHookWithVelocityBasedProfiles"<<std::endl;
+    } else {
+      //std::cout<<"[GEN]starting updateHookWithDurationBasedProfiles"<<std::endl;
+      updateHookWithDurationBasedProfiles(now);
+      //std::cout<<"[GEN]ended updateHookWithDurationBasedProfiles"<<std::endl;
+    }
+
   }
+
+
 
   //std::cout<<"[GEN]started sending positions"<<std::endl;
   sendPositions();

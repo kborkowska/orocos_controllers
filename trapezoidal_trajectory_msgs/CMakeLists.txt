@@ -8,7 +8,6 @@ add_action_files(
   DIRECTORY action 
   FILES 
   TrapezoidTrajectory.action
-  TrapezoidTrajectoryMVMA.action
 )
 
 add_message_files(

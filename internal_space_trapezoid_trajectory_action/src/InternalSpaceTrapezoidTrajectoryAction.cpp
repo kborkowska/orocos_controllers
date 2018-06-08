@@ -126,7 +126,6 @@ bool InternalSpaceTrapezoidTrajectoryAction::startHook() {
   //rtt_actionlib::RTTActionServer<trapezoidal_trajectory_msgs::TrapezoidTrajectoryAction> as_
   as_.start();
   goal_active_ = false;
-  enable_ = true;
 
   return true;
 }
@@ -155,18 +154,15 @@ bool InternalSpaceTrapezoidTrajectoryAction::positionViolationOccurs(Goal g){
 void InternalSpaceTrapezoidTrajectoryAction::updateHook() {
   //checking for joint position for feedback publishing
 
-  //std::cout<<"falafel 2"<<std::endl;
   bool joint_position_data = true;
   if (port_joint_position_.read(joint_position_) == RTT::NoData) {
     joint_position_data = false;
   }
   //what the generator ha given as a setpoint for this iteration
-  //std::cout<<"reading port_joint_position_command"<<std::endl;
   port_joint_position_command_.read(desired_joint_position_);
   //end goal
 
   Goal g = activeGoal_.getGoal();
-  //std::cout<<"got goal in updateHook"<<std::endl;
   //msgs for comunication with generator
   trapezoidal_trajectory_msgs::TrapezoidTrajectoryResult res;
   trapezoidal_trajectory_msgs::TrapezoidGeneratorResult genMsg = 
@@ -184,7 +180,6 @@ void InternalSpaceTrapezoidTrajectoryAction::updateHook() {
         activeGoal_.setSucceeded(res, "");
       }
     } else {
-      //std::cout<<"falafel"<<std::endl;
       res.result.error_code = genMsg.error_code;
       res.result.error_string = genMsg.error_string;
       activeGoal_.setAborted(res, "");
@@ -194,20 +189,46 @@ void InternalSpaceTrapezoidTrajectoryAction::updateHook() {
   // if the goal is still unreached and the component was able to
   // recieve data about joint position feedback is send to irpos api
   if (goal_active_ && joint_position_data) {
-    //std::cout<<"got active data and positions"<<std::endl;
     ros::Time now = rtt_rosclock::host_now();
-    // fealing feedback msg
-    for (int i = 0; i < numberOfJoints_; i++) {
-      feedback_.actual.positions[i] = joint_position_[i];
-      feedback_.desired.positions[i] = desired_joint_position_[i];
-      feedback_.error.positions[i] = joint_position_[i]
-          - desired_joint_position_[i];
+    if(pathToleranceBreached(g)){
+      res.result.error_code =
+            trapezoidal_trajectory_msgs::TrapezoidGeneratorResult::PATH_TOLERANCE_VIOLATED;
+      activeGoal_.setAborted(res, "");
+      goal_active_ = false;
+    } else {
+      // fealing feedback msg
+      for (int i = 0; i < numberOfJoints_; i++) {
+        feedback_.actual.positions[i] = joint_position_[i];
+        feedback_.desired.positions[i] = desired_joint_position_[i];
+        feedback_.error.positions[i] = joint_position_[i]
+            - desired_joint_position_[i];
+      }
+      feedback_.header.stamp = rtt_rosclock::host_now();
+      activeGoal_.publishFeedback(feedback_);
     }
-    feedback_.header.stamp = rtt_rosclock::host_now();
-    activeGoal_.publishFeedback(feedback_);
-    //std::cout<<"sended feedback"<<std::endl;
   }
 }
+
+bool InternalSpaceTrapezoidTrajectoryAction::pathToleranceBreached(Goal g){
+
+  if(g->research_mode){
+    return false;
+  }
+  for (int i = 0; i < g->path_tolerance.size(); i++) {
+    for (int j = 0; j < jointNames_.size(); j++) {
+      if (jointNames_[j] == g->path_tolerance[i].name) {
+        if (fabs(joint_position_[j] - desired_joint_position_[j])
+            > g->path_tolerance[i].position) {
+          RTT::Logger::log(RTT::Logger::Error) << "Path tolerance violated"
+              << RTT::endlog();
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 
 bool InternalSpaceTrapezoidTrajectoryAction::fillRemapTable(Goal g){
 
@@ -254,7 +275,7 @@ bool InternalSpaceTrapezoidTrajectoryAction::remapJointsAndLimits(
   trj_ptr->points.resize(g->trajectory.points.size());
 
 
-  if(g->research_mode){
+  if(!g->duration_mode){
     //check wether right ammount of vel and acc limitations was given
     if(g->max_velocities.size() != numberOfJoints_ ||
        g->max_accelerations.size() != numberOfJoints_){
@@ -315,7 +336,6 @@ bool InternalSpaceTrapezoidTrajectoryAction::getPeersReady(){
 }
 
 void InternalSpaceTrapezoidTrajectoryAction::goalCB(GoalHandle gh) {
-  std::cout<<"you've got mail"<<std::endl;
   if (!goal_active_) {
     trajectory_msgs::JointTrajectory* trj_ptr =
         new trajectory_msgs::JointTrajectory;
@@ -347,7 +367,7 @@ void InternalSpaceTrapezoidTrajectoryAction::goalCB(GoalHandle gh) {
     if(!remapJointsAndLimits(trj_ptr, g, max_vel, max_acc)){
       res.result.error_code = trapezoidal_trajectory_msgs::
                         TrapezoidGeneratorResult::
-                        LIMIT_ARRAY_TOO_SMALL;
+                        INVALID_LIMIT_ARRAY;
       gh.setRejected(res, "");
       goal_active_ = false;
       return;
@@ -370,7 +390,9 @@ void InternalSpaceTrapezoidTrajectoryAction::goalCB(GoalHandle gh) {
           trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal();
       std::cout<<"got peers ready"<<std::endl;
       trj_cptr.trajectory = *trj_ptr;
+      trj_cptr.save_data = g->save_data;
       trj_cptr.research_mode = g->research_mode;
+      trj_cptr.duration_mode = g->duration_mode;
       for (unsigned int j = 0; j < numberOfJoints_;j++) {
         trj_cptr.max_velocities.push_back(max_vel[j]);
         trj_cptr.max_accelerations.push_back(max_acc[j]);

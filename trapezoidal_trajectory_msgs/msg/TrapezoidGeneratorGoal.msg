@@ -31,5 +31,9 @@ control_msgs/JointTolerance[] goal_tolerance
 
 bool research_mode
 
+bool duration_mode
+
+bool save_data
+
 float64[] max_velocities
 float64[] max_accelerations

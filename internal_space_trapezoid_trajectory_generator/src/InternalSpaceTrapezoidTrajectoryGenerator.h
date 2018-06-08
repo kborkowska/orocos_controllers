@@ -75,19 +75,20 @@ class InternalSpaceTrapezoidTrajectoryGenerator : public RTT::TaskContext {
   RTT::InputPort<bool> port_is_synchronised_in_;
 
  private:
-  virtual void saveDataToFile() const;
+  virtual void saveDataToFile();
   trapezoidal_trajectory_msgs::TrapezoidGeneratorGoal getNewGoalAndInitData(void);
   void adjustTimeFrames(ros::Time now);
   void sendPositions();
   bool isAnyJointStillInMotion();
   bool isTheLastTrajectoryPointReached();
-  bool setVelocityProfiles(double t, bool is_velocity_based_);
+  bool setVelocityProfiles(double t);
   void setLastPointsAndSendSuccesMsg();
-  void generatePositions(double t, bool is_velocity_based_);
+  void generatePositions(double t);
   void updateHookWithVelocityBasedProfiles(ros::Time now);
   bool phaseTimeHasPassed(double t);
   bool calculatePhaseDuration(double t);
   void updateHookWithDurationBasedProfiles(ros::Time now);
+  void deactivateTrajectory();
   void prf(double x, std::string name = "[GEN]: ");
 
   //bool last_point_not_set_;
@@ -95,7 +96,7 @@ class InternalSpaceTrapezoidTrajectoryGenerator : public RTT::TaskContext {
   std::vector<bool> active_points_; 
   std::vector<KDL::VelocityProfile_Trapezoid> vel_profile_;
 
-  Eigen::VectorXd des_jnt_pos_, setpoint_, old_point_;
+  Eigen::VectorXd des_jnt_pos_, setpoint_, old_point_, first_point_;
 
   std::vector <Eigen::VectorXd> setpoint_results_, jnt_results_;
 
@@ -120,6 +121,7 @@ class InternalSpaceTrapezoidTrajectoryGenerator : public RTT::TaskContext {
   double phase_end_time_;
 
   bool research_mode_;
+  bool duration_mode_;
   bool save_data_;
 
   std::string errMsg_;
