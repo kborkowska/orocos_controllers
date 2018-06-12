@@ -105,9 +105,6 @@ bool InternalSpaceTrapezoidTrajectoryGenerator::configureHook() {
   old_velocities_.resize(number_of_joints_);
   end_times_.resize(number_of_joints_);
 
-  setpoint_results_.resize(100000);
-  jnt_results_.resize(100000);
-
   des_jnt_pos_.resize(number_of_joints_);
   port_internal_space_position_command_out_.setDataSample(des_jnt_pos_);
 
@@ -126,6 +123,12 @@ bool InternalSpaceTrapezoidTrajectoryGenerator::startHook() {
 
   //std::cout<<max_velocities_[0]<<std::endl;
   //std::cout<<"Starting generator"<<std::endl;
+
+  setpoint_results_.clear();
+  jnt_results_.clear();
+
+  setpoint_results_.resize(100000);
+  jnt_results_.resize(100000);
 
   bool is_synchronised = true;
 
@@ -297,14 +300,6 @@ void InternalSpaceTrapezoidTrajectoryGenerator::adjustTimeFrames(ros::Time now) 
 
 void InternalSpaceTrapezoidTrajectoryGenerator::sendPositions(){
 
-  if(save_data_ && 
-     update_hook_iter_ < setpoint_results_.size()){
-    port_internal_space_position_measurement_in_.read(des_jnt_pos_);
-    jnt_results_[update_hook_iter_] = des_jnt_pos_;
-    //std::cout<<"[GEN]pos:"<<setpoint_(0)<<" time:"<<std::to_string(now.toSec())<<std::endl;
-    setpoint_results_[update_hook_iter_] = setpoint_;
-  }
-
   port_internal_space_position_command_out_.write(setpoint_);
 
 }
@@ -422,6 +417,14 @@ void InternalSpaceTrapezoidTrajectoryGenerator::generatePositions(double t) {
     for(unsigned int i = 0; i < number_of_joints_; i++){
       setpoint_(i) = vel_profile_[i].Pos(t);
     }
+  }
+
+  if(save_data_ && 
+     update_hook_iter_ < setpoint_results_.size()){
+    port_internal_space_position_measurement_in_.read(des_jnt_pos_);
+    jnt_results_[update_hook_iter_] = des_jnt_pos_;
+    //std::cout<<"[GEN]pos:"<<setpoint_(0)<<" time:"<<std::to_string(now.toSec())<<std::endl;
+    setpoint_results_[update_hook_iter_] = setpoint_;
   }
 }
 
